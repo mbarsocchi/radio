@@ -1,4 +1,16 @@
 <?php
+include_once("functions.php");
+
+header('Content-Type: application/json; charset=UTF-8');
+
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    http_response_code(405);
+    echo json_encode([
+        'status' => 'error',
+        'message' => 'Not allowed'
+    ]);
+    exit;
+}
 
 function getVolume (){
     $jsonResponse = shell_exec("echo '{\"command\": [\"get_property\", \"volume\"]}' | socat - /tmp/mpvsocket");
@@ -15,62 +27,72 @@ function getVolume (){
     return $res;
 }
 
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    http_response_code(405);
-    echo json_encode([
-        'status' => 'error',
-        'message' => 'Not Allowed'
-    ]);
-    exit;
+function killMpv (){
+    $jsonResponse = shell_exec("pkill mpv");
+    $jsonResponse["success"]=true;
+    return $jsonResponse ;
 }
 
 $jsonInput = file_get_contents('php://input');
 $data = json_decode($jsonInput, true);
 
-
-switch ($data['action']) {
-    case 'stop':
-        exec("pkill mpv", $output, $result_code);
-        $jsonResponse["success"]= $result_code == 0;
-        if (!$jsonResponse["success"]){
-            $jsonResponse["message"]=implode("\n",$output);
-        }
-        break;
-    case 'play':
-        if ($data['stream']){
-            exec("mpv --input-ipc-server=/tmp/mpvsocket --no-video --audio-device=alsa/default " . escapeshellarg($data['stream']) . " > /dev/null 2>&1 &");
-            $jsonResponse["success"]= $result_code == 0;
-            if (!$jsonResponse["success"]){
-                $jsonResponse["message"]=implode("\n",$output);
+if ($data['action']) {
+	switch ($data['action']) {
+	    case 'stop':
+			$jsonResponse =killMpv();
+            sleep(1);
+			break;
+		case 'play':
+            if ($data['stream']){
+                $statusPlayer = getStreamPlaying();
+                if ($statusPlayer['isPlaying']){
+                    killMpv();
+                }
+                $jsonResponse = shell_exec("mpv --input-ipc-server=/tmp/mpvsocket --no-video --audio-device=alsa/default " . escapeshellarg($data['stream']) . " > /dev/null 2>&1 &");
+                sleep(3);
+                $jsonResponse["success"]=true;
+            }else {
+                $jsonResponse["success"]=false;
+                $jsonResponse["message"]="input error";
             }
-        }else {
-            $jsonResponse["success"]=false;
-            $jsonResponse["message"]="input error";
-        }
+			break;
+		case 'volup':
+            $currVolume = getVolume ();
+            if (isset($currVolume) && isset($currVolume["vol"])) {
+                $increm = $currVolume["vol"] + 20 < 130 ? "20" : 130-$currVolume["vol"];
+    			$volResp = shell_exec('echo \'{"command": ["cycle", "volume", "'.$increm.'"]}\' | socat - /tmp/mpvsocket');                
+                $volObj = json_decode($volResp, true);
+                $jsonResponse["success"]=$volObj['error'] == "success";
+                if (!$jsonResponse["success"]){
+                   $jsonResponse["message"]=$volObj['error']; 
+                }
+            }else {
+                $jsonResponse["success"]=false;
+                $jsonResponse["message"]=isset($currVolume["error"])? $currVolume["error"] : "Error setting volume";
+            }
+			break;			
+		case 'voldown':
+            $currVolume = getVolume ();
+            if (isset($currVolume) && isset($currVolume["vol"])){
+                $decrem = $currVolume["vol"] - 20 > 0 ? "20" : $currVolume["vol"];
+                $volResp = shell_exec('echo \'{"command": ["cycle", "volume", "-'.$decrem.'"]}\' | socat - /tmp/mpvsocket');
+                $volObj = json_decode($volResp, true);
+                $jsonResponse["success"]=$volObj['error'] == "success";
+                if (!$jsonResponse["success"]){
+                   $jsonResponse["message"]=$volObj['error']; 
+                }	
+            }else {
+                $jsonResponse["success"]=false;
+                $jsonResponse["message"]=isset($currVolume["error"])? $currVolume["error"] : "Error setting volume";
+            }
         break;
-    case 'volup':
-        $currVolume = getVolume ();
-        if (isset($currVolume) && isset($currVolume["vol"])) {
-            $increm = $currVolume["vol"] + 20 < 130 ? "20" : 130-$currVolume["vol"];
-            $jsonResponse = json_decode(shell_exec('echo \'{"command": ["cycle", "volume", "+'.$increm.'"]}\' | socat - /tmp/mpvsocket'));
-        }else {
+        default:
             $jsonResponse["success"]=false;
-            $jsonResponse["message"]=isset($currVolume["error"])? $currVolume["error"] : "Error setting volume";
-        }
-        break;			
-    case 'voldown':
-        $currVolume = getVolume ();
-        if (isset($currVolume) && isset($currVolume["vol"])){
-            $decrem = $currVolume["vol"] - 20 > 0 ? "20" : $currVolume["vol"];
-            $jsonResponse = json_decode(shell_exec('echo \'{"command": ["cycle", "volume", "-'.$decrem.'"]}\' | socat - /tmp/mpvsocket'));		
-        }else {
-            $jsonResponse["success"]=false;
-            $jsonResponse["message"]=isset($currVolume["error"])? $currVolume["error"] : "Error setting volume";
-        }
-    break;
-    default:
-        $jsonResponse["success"]=false;
-        $jsonResponse["message"]="Action unrecognized";
-    break;
+            $jsonResponse["message"]="Action unrecognized";
+        break;
+	}
+}else {
+    $jsonResponse["success"]=false;
+    $jsonResponse["message"]="Input error";
 }
 echo json_encode($jsonResponse);

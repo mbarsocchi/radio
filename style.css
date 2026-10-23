@@ -22,6 +22,25 @@ a {
 	padding: 1em;
 	text-align: center;
 }
+
+.playing {
+	background: #aca8e6;
+}
+
+.controls-container {
+    display: flex;
+    gap: 0;
+}
+.controls-container .stream-item {
+    flex: 1;
+    border:1px #ccc solid;
+    margin: 0;
+}
+
+.controls-container .stream-item {
+    flex: 1;
+}
+
 .loading-overlay {
 	position: fixed;
 	top: 0;

@@ -16,6 +16,7 @@ include_once("functions.php");
     <?php if(clientInSameSubnet()) {
         $statusPlayer = getStreamPlaying();?>
         <?php if($statusPlayer['isPlaying']) {?>
+        <div class="controls-container">
             <a class="stream-card stream-item" data-action="voldown">
                 <h3>Vol-</h3>
             </a>
@@ -25,10 +26,12 @@ include_once("functions.php");
             <a class="stream-card stream-item" data-action="volup">
                 <h3>Vol+</h3>
             </a>
+         </div>
         <?php }?>
 
-        <?php foreach (getAllRadios() as $stationName => $streamUrl) {?>
-        <a class="stream-card stream-item" data-stream-url="<?php echo $streamUrl;?>" data-action="play">
+        <?php foreach (getAllRadios() as $stationName => $streamUrl) {
+            $addClass = $statusPlayer['isPlaying'] && ($streamUrl == $statusPlayer['streamUrl'])? 'playing':'';?>
+        <a class="stream-card stream-item <?php echo $addClass;?>" data-stream-url="<?php echo $streamUrl;?>"  data-action="play">
             <h3><?php echo $stationName;?></h3>
         </a>
         <?php }?>
