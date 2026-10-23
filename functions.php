@@ -41,7 +41,7 @@ function getStreamPlaying(){
 }
 
 function getAllRadios(){
-    $radioStations = glob('stations/*');
+    $radioStations = glob(__DIR__.DIRECTORY_SEPARATOR.'stations'.DIRECTORY_SEPARATOR.'*');
     foreach ($radioStations as $station) {
         if ($station[0] == '.'){
             continue;
